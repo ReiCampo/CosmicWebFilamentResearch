@@ -1,0 +1,1 @@
+Disperse's job is to identify topological features like filaments, peaks, voids, and walls from data sets in 2D and 3D (and maybe even more dimensions)
