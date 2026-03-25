@@ -61,7 +61,7 @@ treebricks - Galaxy or halo catalogs. For halo you use dm particles, for galaxy 
 AdaptaHOP is a method to find substructures. So it can find sub halos within halos. WE used tweed et all 2009 to do this. It's reasonably efficient to find structures, but it is not good for galaxy mergers. So it's pretty bad at identifying the mass of each component in a merger. Charlotte developed a method called Velociraptor. If you want to identify structure, you wil lhave to use density and in phase space
 So when you see 6DFOF, that means it's a friend of friend in pahse space. 
 
-To link galaxies through time, you will have to link the treebricks. So you can use TreeMaker. whe n you track a halo back in time, you track it back to all its progenitors. You track back the particles. If two particles have been lost somewhere else, you are goign to trash those particles that left. Out of all the projenitors, we consider the mos tmassive one is the main one, the previous halo. 
+To link galaxies through time, you will have to link the treebricks. So you can use TreeMaker. whe n you track a halo back in time, you track it back to all its progenitors. You track back the particles. If two particles have been lost somewhere else, you are goign to trash those particles that left. Out of all the projenitors, we consider the most massive one is the main one, the previous halo. 
 
 Tree bricks are available already. They have been heavily tuned and they are good. But the actual tree that philogony of haloes is not something that is readily available, you have to run treemaker. You give treemaker that gives you a snapshot of the link and it creates a geneology tree. The output structure is a tree, not easy to store in Fortran, but we have base routines to read them. 
 
@@ -131,3 +131,12 @@ Next: running python scripts on HPC queue
 Using treemaker 
 Reconstructing filaments with disperse
 Extracting cubes of gas
+
+
+3/19/2026 Research Meeting Notes
+There are about 5000 galaxies in New Horizons
+
+To calculate the distance from a filament:
+Remember Disperse gives you samples along the saddle point. in between the points you have segments, which have a center (this is just by taking the average between the extremeties). You can do distance to center of segment, that's reasonable enough to find the distance from the filament. Sometimes, though, you can get galaxies that are a part of one filament, but when you calculate teh distance from the center of the segment, sometimes you may get that the galaxy is closer to a segment in another filament than the one that the galaxy actually is in. You can take the vector between the two points of the segment and you can determine if the position of hte galaxy is negative. If it is, the closest point is A (see image). What we really need is the normal vector. Once you have the normal vector, you can get the ex, ey, and ez of the vector. To get the orthogonal distance, you take the dot product between two vectors and see if it is equal to zero. Zero means orthogonality. You will have to select which vector is equal to 1 and equal to 0. Then you have to solve for the third component of the vector. Once you have those two vectors, to get the third vector, you take the cross product of those. Then you project AG onto the e2 e3 plane and calculate the length of the resultant vector. 
+
+KDTree is super fast at calculating the distance from points. It avoid computing all of hte point. It first segements the the cell wehre you are and searches the cell that you are in (and maybe the cells near it). This only works when you have point to point. 

@@ -111,7 +111,7 @@ class ReadGalData:
                 Galaxy_Mass (Standard Unit):  The galaxy's mass in standard 
                 units. You will have to multiply by 10^11 to get solar masses.
                 
-                Galaxy_Position_X (Mpc):  The X position of the galaxy.
+                Galaxy_Position_X (Mpc):  The X position of the galaxy. 
                 
                 Galaxy_Position_Y (Mpc):  The Y position of the galaxy.
                 
@@ -142,25 +142,31 @@ class ReadGalData:
                 descriptions are as follows:
                 
                 Star_Position_X (Mpc):  The x position of the star. The units
-                may be different here, will need to look into this later.
+                may be different here, will need to look into this later. These
+                values have not been recentered onto the parent galaxy.
                 
                 Star_Position_Y (Mpc):  The y position of the star. The units
-                may be different here, will need to look into this later.
+                may be different here, will need to look into this later. These
+                values have not been recentered onto the parent galaxy.
                 
                 Star_Position_Z (Mpc):  The z position of the star. The units
-                may be different here, will need to look into this later.
+                may be different here, will need to look into this later. These
+                values have not been recentered onto the parent galaxy.
                 
                 Star_Velocity_X (km/s):  The velocity of the star in the x
                 direction. Units may be different here, will have to check
-                later.
+                later. These values have not been recentered onto the parent
+                galaxy.
                 
                 Star_Velocity_Y (km/s):  The velocity of the star in the y
                 direction. Units may be different here, will have to check
-                later.
+                later. These values have not been recentered onto the parent
+                galaxy.
                 
                 Star_Velocity_Z (km/s):  The velocity of the star in the z
                 direction. Units may be different here, will have to check
-                later.
+                later. These values have not been recentered onto the parent
+                galaxy.
                 
                 Star_Mass (Standard Mass Unit):  The mass of the star. I believe 
                 that this still needs to be multiplied by *something* to get 
@@ -255,9 +261,9 @@ class ReadGalData:
         self.star_info = pd.DataFrame({
             
             # Star Information Within the Single Galaxy:
-            "Stars_Position_X (Mpc)": x_stars,
-            "Stars_Position_Y (Mpc)": y_stars,
-            "Stars_Position_Z (Mpc)": z_stars,
+            "Star_Position_X (Mpc)": x_stars,
+            "Star_Position_Y (Mpc)": y_stars,
+            "Star_Position_Z (Mpc)": z_stars,
             "Star_Velocity_X (km/s)": vx_stars,
             "Star_Velocity_Y (km/s)": vy_stars,
             "Star_Velocity_Z (km/s)": vz_stars,
@@ -273,5 +279,110 @@ class ReadGalData:
         print("*" * 50)
         
         return self.galaxy_header_info, self.star_info
+    
+
+    
+class RecenterStars:
+    
+
+    def __init__(self, gal_info, star_info):
+        '''
+        This class recenters the stars to the host galaxy's center of mass.
+        This is because when you first use ReadGalData, the stars' positions
+        and velocities are not centered on the host galaxy's center of mass, so
+        this class should be used immediately after ReadGalData.
+        
+        Inputs:
+            self (self object): 
+                The object that will be called within the RecenterStars class.
+                
+            gal_info (Pandas Data Frame):
+                The galaxy header information of the host galaxy. This should
+                be the same galaxy header information returned from 
+                ReadGalData.
+            
+            star_info (Pandas Data Frame):
+                The star information of the host galaxy. This should be the 
+                same star info returned from ReadGalData.
+
+        '''
+        
+        self.gal_info = gal_info
+        self.star_info = star_info
+        self.adjusted_star_info = star_info
+        self.recenter_stars()
+        
+    
+    def recenter_stars(self):
+        '''
+        This is the main function of RecenterStars. This will take in the
+        star's positions and velocities and adjust them based on the host
+        galaxy's positions and velocities.
+        
+        Inputs:
+            self (self object):
+                The object that will be called inside the recenter_stars 
+                function
+                
+        Outputs:
+            adjusted_star_info (Pandas Data Frame):
+                The star info data frame that contains the recentered star
+                positions and velocities. The following adjusted columns are
+                as follows:
+                    
+                    Star_Position_X (Mpc):  Subtracts the host galaxy's x
+                    position from the star's x position.
+                    
+                    Star_Position_Y (Mpc):  Subtracts the host galaxy's y
+                    position from the star's y position.
+                    
+                    Star_Position_Z (Mpc):  Subtracts the host galaxy's z
+                    position from the star's z position.
+                    
+                    Star_Velocity_X (km/s):  Subtracts the host galaxy's x
+                    velocity from the star's x velocity.
+                    
+                    Star_Velocity_Y (km/s):  Subtracts the host galaxy's y
+                    velocity from the star's y velocity.
+                    
+                    Star_Velocity_Z (km/s):  Subtracts the host galaxy's z
+                    velocity from the star's z velocity
+
+        '''
+        
+        # Only finding the galaxy_id_number to use later in the print 
+        # statement:
+        galaxy_id_number = self.gal_info["Galaxy_Number"].values[0]
+        
+        # Now finding the galaxy's com positions and velocities:
+        galaxy_com_positions = [self.gal_info["Galaxy_Position_X (Mpc)"].values[0],
+                                 self.gal_info["Galaxy_Position_Y (Mpc)"].values[0],
+                                 self.gal_info["Galaxy_Position_Z (Mpc)"].values[0]]
+        
+        galaxy_com_velocities = [self.gal_info["Galaxy_Velocity_X (km/s)"].values[0],
+                                 self.gal_info["Galaxy_Velocity_Y (km/s)"].values[0],
+                                 self.gal_info["Galaxy_Velocity_Z (km/s)"].values[0]]
+        
+        
+        
+        print(f"Galaxy {galaxy_id_number} center of mass coordinates in Mpc:\n" \
+              f"{galaxy_com_positions}")
+        print("*" * 50)
+        print(f"Galaxy {galaxy_id_number} center of mass velocities in km/s:\n" \
+              f"{galaxy_com_velocities}")
+        print("*" * 50)
+  
+    
+        # This is the main section of the function. This recenters the star's 
+        # positions and velocities:
+        self.adjusted_star_info = self.adjusted_star_info.assign(**{
+                                                                    "Star_Position_X (Mpc)": self.star_info["Star_Position_X (Mpc)"] - galaxy_com_positions[0],
+                                                                    "Star_Position_Y (Mpc)": self.star_info["Star_Position_Y (Mpc)"] - galaxy_com_positions[1],
+                                                                    "Star_Position_Z (Mpc)": self.star_info["Star_Position_Z (Mpc)"] - galaxy_com_positions[2],
+                                                                    "Star_Velocity_X (km/s)": self.star_info["Star_Velocity_X (km/s)"] - galaxy_com_velocities[0],
+                                                                    "Star_Velocity_Y (km/s)": self.star_info["Star_Velocity_Y (km/s)"] - galaxy_com_velocities[1],
+                                                                    "Star_Velocity_Z (km/s)": self.star_info["Star_Velocity_Z (km/s)"] - galaxy_com_velocities[2]})
+        
+        return self.adjusted_star_info
     
     
