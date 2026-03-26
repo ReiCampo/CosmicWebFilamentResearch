@@ -244,18 +244,18 @@ class ReadGalData:
         })
         
         # These are values pertaining to the stars.
-        x_stars = fortran_data.read_record("f")
-        y_stars = fortran_data.read_record("f")
-        z_stars = fortran_data.read_record("f")
+        x_stars = fortran_data.read_record("d")
+        y_stars = fortran_data.read_record("d")
+        z_stars = fortran_data.read_record("d")
         
-        vx_stars = fortran_data.read_record("f")
-        vy_stars = fortran_data.read_record("f")
-        vz_stars = fortran_data.read_record("f")
+        vx_stars = fortran_data.read_record("d")
+        vy_stars = fortran_data.read_record("d")
+        vz_stars = fortran_data.read_record("d")
         
-        mass_stars = fortran_data.read_record("f")
+        mass_stars = fortran_data.read_record("d")
         ids = fortran_data.read_record("f") # The star ids are being thrown away in the original Fortran file, so I will assign for now but will not use it later
-        age_stars = fortran_data.read_record("f")
-        zz_stars = fortran_data.read_record("f")
+        age_stars = fortran_data.read_record("d")
+        zz_stars = fortran_data.read_record("d")
         
         
         self.star_info = pd.DataFrame({
