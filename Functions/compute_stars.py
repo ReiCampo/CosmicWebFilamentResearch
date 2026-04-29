@@ -10,7 +10,15 @@
 ###  This function can read in the data found in                              
 ###  /data7b/NewHorizon/TREE_STARS_AdaptaHOP_dp_SCnew_gross/GAL_XXXXX and     
 ###  separates the galaxy and star information in two different Pandas data   
-###  frames.                                                                  
+###  frames.         
+
+   
+###  The catalogs to view all the galaxy information is in                        
+###  /data7b/NewHorizon/TREE_STARS_AdaptaHOP_dp_SCnew_gross/tree_bricksXXX.       
+###  Make sure to use the same time step as the Gal file! So for example if you   
+###  pulled a galaxy from GAL_00970, make sure your tree bricks file says         
+###  tree_bricks970!                                                              
+                                                 
 
 ### If ever you need to check on the read_gal file that does unit conversion
 ### for you, you can look at read_gal_f90 in /data7b/NewHorizon/PP_NewH         
@@ -34,7 +42,16 @@ from scipy.io import FortranFile
 
 class ReadGalData:
     
-    def __init__(self, gal_data, print_gal_variables = True):
+    def __init__(self, 
+                 gal_data, 
+                 alpha,
+                 omega_m,
+                 omega_l,
+                 omega_k,
+                 aexp,
+                 ntable,
+                 h0,
+                 print_gal_variables = True):
         '''
         The initializing function for the class. This function will hold the
         header and galaxy/stars info in separate pandas data frames
@@ -43,11 +60,54 @@ class ReadGalData:
             self (self object):
                 The object that will be called on within the ReadGalData class.
             
-            gal_data: (New Horizons Data):
+            gal_data (New Horizons Data):
                 The file path to your gal_stars_XXXXXX data. This function will
                 take in the AdaptaHOP gal_stars_XXXXXX data found in the file
                 path: 
                 /data7b/NewHorizon/TREE_STARS_AdaptaHOP_dp_SCnew_gross/GAL_XXXXX
+                
+            alpha (int):
+                Alpha will be used when calling convert_time() later in the 
+                code. This is the integration accuracy (or integration step
+                size) when calculating the conformal time derivative of the
+                scale factor and the cosmic time derivative of the scale 
+                factor. In the original Fortran code, it was hard coded to be
+                1e-6.
+                
+            omega_m (double):
+                The Omega_matter cosmological paramter found in the
+                info_XXXXX.txt files (in the file path /data7b/NewHorizon/INFO 
+                on infinity). You should be using the omega_m found in your 
+                specific New Horizons snapshot info_XXXXX.txt file!
+                
+            omega_l (double):
+                The Omega_lambda cosmological paramter found in the
+                info_XXXXX.txt files (in the file path /data7b/NewHorizon/INFO 
+                on infinity). You should be using the omega_l found in your 
+                specific New Horizons snapshot info_XXXXX.txt file!
+                
+            omega_k (double):
+                The Omega_k (curvature) cosmological paramter found in the
+                info_XXXXX.txt files (in the file path /data7b/NewHorizon/INFO 
+                on infinity). You should be using the omega_k found in your 
+                specific New Horizons snapshot info_XXXXX.txt file!
+                
+            aexp (double):
+                The cosmological scale factor found in the info_XXXXX.txt files 
+                (in the file path /data7b/NewHorizon/INFO on infinity). You 
+                should be using the aexp found in your specific New Horizons 
+                snapshot info_XXXXX.txt file!
+                
+            ntable (int):
+                The resolution of the lookup table. This determines how many
+                subsamples of the Friedmann equations to take, then create a 
+                fixed-size table with evenly spaced entries. This was hard-
+                coded in the Fortran file to be 1000.
+                
+            h0 (double):
+                The Hubble constant corresponding to your timestep. Make sure
+                to use the Hubble constant found in your info_XXXXX.txt file!
+                
                 
             print_gal_varialbes (bool):
                 The function will automatically be verbose and print out the 
@@ -60,19 +120,28 @@ class ReadGalData:
         Outputs:
             self.header_info (Pandas data frame):
                 The header information that contains the galaxy level info. See
-                read_data function below to get more information on the columns
-                contained in the data frame.
+                read_data() function below to get more information on the columns
+                contained in this data frame.
                 
             self.star_info (Pandas data frame):
                 The main data frame that contains the star information. For more
-                details about the columns, see the read_data function below.
+                details about the columns, see the read_data() function below.
         '''
         
         self.gal_data = gal_data
         self.galaxy_header_info = pd.DataFrame()
         self.star_info = pd.DataFrame()
         self.verbose = print_gal_variables
+        self.alpha = alpha
+        self.omega_m = omega_m
+        self.omega_l = omega_l
+        self.omega_k = omega_k
+        self.aexp = aexp
+        self.ntable = ntable
+        self.h0 = h0
+        
         self.read_data()
+        self.convert_time()
         
     
     def read_data(self):
@@ -172,8 +241,9 @@ class ReadGalData:
                 that this still needs to be multiplied by *something* to get 
                 solar masses, will need to look into this later.
                 
-                Star_Age (Standard Time Unit):  The age of the star. Will need 
-                to look into how to change the units for this.
+                Star_Age (Standard Time Unit):  The age of the star in code
+                units. Can be converted to years with the function 
+                convert_time().
                 
                 Star_Metallicity (Dex):  The metallicity of the star. I am 
                 assuming that the units are dex here, but will have to confirm
@@ -253,7 +323,7 @@ class ReadGalData:
         vz_stars = fortran_data.read_record("d")
         
         mass_stars = fortran_data.read_record("d")
-        ids = fortran_data.read_record("f") # The star ids are being thrown away in the original Fortran file, so I will assign for now but will not use it later
+        ids = fortran_data.read_record("i") # The star ids are being thrown away in the original Fortran file, so I will assign for now but will not use it later
         age_stars = fortran_data.read_record("d")
         zz_stars = fortran_data.read_record("d")
         
@@ -280,6 +350,142 @@ class ReadGalData:
         
         return self.galaxy_header_info, self.star_info
     
+    
+    def convert_time(self):
+        '''
+        This function will convert the time unit of the star's age into years.
+        This function was originally written in Fortran and was translated
+        using Claude.ai
+        
+        Inputs:
+            self (self object):
+                The self object that will be called throughout the function.
+                
+        Outputs:
+            self.star_info (Pandas data frame):
+                This will return a Pandas data frame with all of the above 
+                columns found in the read_data() function, but with an added
+                column:
+                
+                Star_Age (Years): The age of the stars in years. This was 
+                calculated using the conversion functions found in the 
+                Fortran code. 
+        
+        '''
+        
+        
+        def dadtau(axp, O_mat_0, O_vac_0, O_k_0):
+            """da/dtau — conformal time derivative of scale factor"""
+            return axp**2 * np.sqrt(O_mat_0/axp**3 + O_vac_0 + O_k_0/axp**2)
+
+        def dadt(axp, O_mat_0, O_vac_0, O_k_0):
+            """da/dt — cosmic time derivative of scale factor"""
+            return axp * np.sqrt(O_mat_0/axp**3 + O_vac_0 + O_k_0/axp**2)
+
+        def friedman(O_mat_0, O_vac_0, O_k_0, alpha, axp_min, ntable):
+            """
+            Reproduce the Fortran friedman subroutine.
+            
+            Parameters:
+                O_mat_0 : float - matter density parameter (Omega_m)
+                O_vac_0 : float - vacuum/dark energy density (Omega_lambda)
+                O_k_0   : float - curvature density (Omega_k), often 0
+                alpha   : float - step size accuracy (e.g. 1e-4)
+                axp_min : float - minimum scale factor to integrate to (e.g. 1e-4)
+                ntable  : int   - number of entries in output lookup table
+            
+            Returns:
+                axp_out, hexp_out, tau_out, t_out — each of length ntable+1
+            """
+
+            # --- Pass 1: count total steps to determine nskip ---
+            axp_tau = 1.0
+            axp_t   = 1.0
+            tau = 0.0
+            t   = 0.0
+            nstep = 0
+
+            while axp_tau >= axp_min or axp_t >= axp_min:
+                nstep += 1
+
+                dtau = alpha * axp_tau / dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0)
+                axp_tau_pre = axp_tau - dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0) * dtau / 2.0
+                axp_tau = axp_tau - dadtau(axp_tau_pre, O_mat_0, O_vac_0, O_k_0) * dtau
+                tau -= dtau
+
+                dt = alpha * axp_t / dadt(axp_t, O_mat_0, O_vac_0, O_k_0)
+                axp_t_pre = axp_t - dadt(axp_t, O_mat_0, O_vac_0, O_k_0) * dt / 2.0
+                axp_t = axp_t - dadt(axp_t_pre, O_mat_0, O_vac_0, O_k_0) * dt
+                t -= dt
+
+            age_tot = -t
+            nskip = nstep // ntable
+            print(f"Age of the Universe (in unit of 1/H0) = {age_tot:.3e}")
+
+            # --- Pass 2: build the lookup table ---
+            axp_out  = np.zeros(ntable + 1)
+            hexp_out = np.zeros(ntable + 1)
+            tau_out  = np.zeros(ntable + 1)
+            t_out    = np.zeros(ntable + 1)
+
+            axp_tau = 1.0;  tau = 0.0
+            axp_t   = 1.0;  t   = 0.0
+            nstep = 0;      nout = 0
+
+            t_out[0]    = t
+            tau_out[0]  = tau
+            axp_out[0]  = axp_tau
+            hexp_out[0] = dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0) / axp_tau
+
+            while axp_tau >= axp_min or axp_t >= axp_min:
+                nstep += 1
+
+                dtau = alpha * axp_tau / dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0)
+                axp_tau_pre = axp_tau - dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0) * dtau / 2.0
+                axp_tau = axp_tau - dadtau(axp_tau_pre, O_mat_0, O_vac_0, O_k_0) * dtau
+                tau -= dtau
+
+                dt = alpha * axp_t / dadt(axp_t, O_mat_0, O_vac_0, O_k_0)
+                axp_t_pre = axp_t - dadt(axp_t, O_mat_0, O_vac_0, O_k_0) * dt / 2.0
+                axp_t = axp_t - dadt(axp_t_pre, O_mat_0, O_vac_0, O_k_0) * dt
+                t -= dt
+
+                if nstep % nskip == 0:
+                    nout += 1
+                    if nout <= ntable:
+                        t_out[nout]    = t
+                        tau_out[nout]  = tau
+                        axp_out[nout]  = axp_tau
+                        hexp_out[nout] = dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0) / axp_tau
+
+            # Force last entry
+            t_out[ntable]    = t
+            tau_out[ntable]  = tau
+            axp_out[ntable]  = axp_tau
+            hexp_out[ntable] = dadtau(axp_tau, O_mat_0, O_vac_0, O_k_0) / axp_tau
+
+            return axp_out, hexp_out, tau_out, t_out
+        
+        # --- Build the lookup tables ---
+        aexp_out, _, tau_frw, t_frw = friedman(O_mat_0 = self.omega_m, 
+                                        O_vac_0 = self.omega_l, 
+                                        O_k_0 = self.omega_k, 
+                                        ntable = self.ntable,
+                                        alpha = 1e-6, 
+                                        axp_min = 1e-3)
+        
+        time_simu = np.interp(self.aexp, aexp_out[::-1], tau_frw[::-1])
+        
+        # --- Interpolate all star ages at once ---
+        age_conformal = self.star_info["Star_Age (Standard Time Unit)"].values
+        time_cosmic = np.interp(age_conformal, tau_frw[::-1], t_frw[::-1])
+        
+        # --- Convert to physical age in years and store ---
+        self.star_info["Star_Age (Years)"] = (
+            (time_simu - time_cosmic) / (self.h0 * 1e5 / 3.08e24) / (365.0 * 24.0 * 3600.0)
+        )
+        
+        return self.star_info
 
     
 class RecenterStars:
@@ -386,3 +592,87 @@ class RecenterStars:
         return self.adjusted_star_info
     
     
+
+class CalculateLineOfSight:
+    
+    def __init__(self, gal_info, adjusted_star_info):
+        
+        self.gal_info = gal_info
+        self.star_info = adjusted_star_info
+        self.rotated_positions = None
+        self.rotated_velocities = None
+        self.los_calculation()
+        
+    def los_calculation(self):
+        
+        star_positions = np.column_stack([self.star_info["Star_Position_X (Mpc)"].values,
+                          self.star_info["Star_Position_Y (Mpc)"].values,
+                          self.star_info["Star_Position_Z (Mpc)"].values])
+        
+        star_velocities = np.column_stack([self.star_info["Star_Velocity_X (km/s)"].values,
+                           self.star_info["Star_Velocity_Y (km/s)"].values,
+                           self.star_info["Star_Velocity_Z (km/s)"].values])
+        
+        star_mass = self.star_info["Star_Mass (Standard Mass Unit)"].values
+        
+        
+        # Finding the distance each star is from the galaxy's center:
+        
+        galaxy_com_positions = [self.gal_info["Galaxy_Position_X (Mpc)"].values[0],
+                                 self.gal_info["Galaxy_Position_Y (Mpc)"].values[0],
+                                 self.gal_info["Galaxy_Position_Z (Mpc)"].values[0]]
+        
+        distance_to_center = np.column_stack([star_positions[:, 0] - galaxy_com_positions[0],
+                                           star_positions[:, 1] - galaxy_com_positions[1],
+                                           star_positions[:, 2] - galaxy_com_positions[2]])
+        
+        
+        # Calculating the angular momentum of each star from the center of the
+        # galaxy:
+            
+        L_total = np.sum(star_mass[:, None] * np.cross(star_positions, star_velocities), axis = 0)
+        
+        # Normalizing so I can get the direction of the vector normal to the 
+        # angular momentum:
+            
+        L_normal = L_total / np.linalg.norm(L_total)
+        
+        
+        # Now I need to create the new x and y axis, so I will do that by using
+        # an arbitrary vector like we discussed in research meeting:
+            
+        helper_vector = [1, 0, 0]
+        
+        # Creating the x axis by crossing the helper vector and the L_normal
+        x_cross = np.cross(helper_vector, L_normal)
+        x_axis = x_cross / np.linalg.norm(x_cross)
+        
+        # Creating the y axis by crossing the x_axis with the L_normal:
+        y_axis = np.cross(L_normal, x_axis)
+        
+        # Now that I have my new x, y, and z axis, I will now create the
+        # rotation matrix.
+        
+        rotation_matrix = np.array([x_axis, y_axis, L_normal])
+        
+        # Now let's actually rotate the position of the stars:
+        
+        self.rotated_positions = pd.DataFrame({
+                    "Rotated_Position_X (Mpc)": (rotation_matrix @ star_positions.T).T[:, 0],
+                    "Rotated_Position_Y (Mpc)": (rotation_matrix @ star_positions.T).T[:, 1],
+                    "Rotated_Position_Z (Mpc)": (rotation_matrix @ star_positions.T).T[:, 2]
+                    })
+
+        self.rotated_velocities = pd.DataFrame({
+                    "Rotated_Velocity_X (km/s)": (rotation_matrix @ star_velocities.T).T[:, 0],
+                    "Rotated_Velocity_Y (km/s)": (rotation_matrix @ star_velocities.T).T[:, 1],
+                    "Rotated_Velocity_Z (km/s)": (rotation_matrix @ star_velocities.T).T[:, 2]
+                    })
+        
+        return self.rotated_positions, self.rotated_velocities
+    
+
+        
+        
+        
+        
